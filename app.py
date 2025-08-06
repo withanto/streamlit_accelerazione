@@ -2,12 +2,10 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 from scipy.signal import butter, filtfilt, find_peaks
 from io import BytesIO
 
-# --- Funzioni Helper ---
-
+# --- Funzioni ---
 def butter_bandpass(lowcut, highcut, fs, order=4):
     nyq = 0.5 * fs
     return butter(order, [lowcut/nyq, highcut/nyq], btype='band')
@@ -58,8 +56,7 @@ def plot_with_ticker(time, signal, title, label, min_idx=None, max_idx=None):
     ax.grid(True, linestyle='--', alpha=0.7)
     return fig
 
-# --- Streamlit app ---
-
+# --- Streamlit ---
 st.title("Analisi Segnale Accelerazione X")
 
 uploaded_file = st.file_uploader("Carica file Excel", type=['xlsx'])
@@ -68,22 +65,28 @@ if uploaded_file:
     df = pd.read_excel(uploaded_file)
     df['Time'] = (df['SampleTimeFine'] - df['SampleTimeFine'].iloc[0]) / 1e6
 
-    st.subheader("Dati grezzi")
-    st.dataframe(df.head())
+    st.subheader("Parametri di analisi")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        SOGLIA_MIN = st.slider("Soglia minimo (SOGLIA_MIN)", min_value=-5.0, max_value=0.0, value=-1.5, step=0.1)
+        MIN_SEP_TIME = st.slider("Tempo minimo tra minimi (s)", min_value=0.1, max_value=1.5, value=0.45, step=0.05)
+    with col2:
+        TEMPO_RANGE = st.slider("Intervallo di affinamento (s)", min_value=0.1, max_value=2.0, value=0.735, step=0.05)
+        start_end = st.slider("Intervallo tempo segmento (s)", min_value=float(df['Time'].min()), max_value=float(df['Time'].max()), value=(393.0, 411.0))
+        START_TIME, END_TIME = start_end
 
     FS = 60.0
     LOWCUT, HIGHCUT = 0.5, 3.0
-    SOGLIA_MIN = -1.5
-    MIN_SEP_TIME = 0.45
-    TEMPO_RANGE = 0.735
-    START_TIME, END_TIME = 393, 411
 
-    # Segnale originale completo
+    st.subheader("Dati grezzi")
+    st.dataframe(df.head())
+
     st.subheader("Segnale originale completo")
     fig1 = plot_with_ticker(df['Time'].values, df['Acc_X'].values, "Segnale originale - Acc_X", "Originale")
     st.pyplot(fig1)
 
-    # Segnale filtrato
+    # Filtraggio
     b, a = butter_bandpass(LOWCUT, HIGHCUT, FS)
     df['Acc_X_filt'] = filtfilt(b, a, df['Acc_X'].values)
 
@@ -112,13 +115,12 @@ if uploaded_file:
     fig4 = plot_with_ticker(t, filt, "Segmento filtrato completo", "Acc_X_filt")
     st.pyplot(fig4)
 
-    # Trova minimi e picchi
+    # Minimi e picchi
     min_idx = trova_minimi(filt, SOGLIA_MIN, FS, MIN_SEP_TIME)
     max_idx = trova_picchi_massimi(filt, min_idx)
 
     st.subheader("Segmento filtrato con minimi e picchi")
-    fig5 = plot_with_ticker(t, filt, "Segmento filtrato con minimi e picchi",
-                           "Acc_X_filt", min_idx=min_idx, max_idx=max_idx)
+    fig5 = plot_with_ticker(t, filt, "Segmento filtrato con minimi e picchi", "Acc_X_filt", min_idx=min_idx, max_idx=max_idx)
     st.pyplot(fig5)
 
     # Affinamento
@@ -126,11 +128,10 @@ if uploaded_file:
     max_aff = affina_indici(max_idx, t, raw, TEMPO_RANGE, mode='max')
 
     st.subheader("Segmento grezzo con minimi e picchi affinati")
-    fig6 = plot_with_ticker(t, raw, "Segmento grezzo con minimi e picchi affinati",
-                           "Acc_X", min_idx=min_aff, max_idx=max_aff)
+    fig6 = plot_with_ticker(t, raw, "Segmento grezzo con minimi e picchi affinati", "Acc_X", min_idx=min_aff, max_idx=max_aff)
     st.pyplot(fig6)
 
-    # Grafico finale time-zeroed
+    # Grafico time-zeroed
     t0 = t[max_aff[0]] if len(max_aff) > 0 else 0
     time_zero = t - t0
     time_zeroed_picchi = time_zero[max_aff]
@@ -152,7 +153,7 @@ if uploaded_file:
     ax.grid(True)
     st.pyplot(fig7)
 
-    # Download file Excel
+    # Download
     output = BytesIO()
     df_finale.to_excel(output, index=False)
     output.seek(0)
