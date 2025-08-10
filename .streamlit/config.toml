@@ -1,2 +1,7 @@
+<<<<<<< HEAD
 [browser]
 gatherUsageStats = false
+=======
+[browser] 
+gatherUsageStats = false 
+>>>>>>> 5c6de104df8e2a2181b1f8f6154e139a7eba99dc
